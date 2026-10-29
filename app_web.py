@@ -120,20 +120,37 @@ elif st.session_state.examen_activo:
                 st.warning("⚠️ Selecciona una opción antes de continuar.")
             else:
                 if formato == "PJS":
-                    pts = 1.0 if resp == datos[6] else 0.0
+                    _, caso, enunciado, opt_a, opt_b, opt_c, correcta, just = datos
+                    pts = 1.0 if resp == correcta else 0.0
                     st.session_state.historial.append({
-                        "num": idx + 1, "formato": "PJS", "subtipo": "Funcional",
-                        "tu_resp": resp, "optima": datos[6], "aceptable": datos[6],
-                        "puntos": pts, "just": datos[7]
+                        "num": idx + 1,
+                        "formato": "PJS",
+                        "subtipo": "Funcional",
+                        "caso": caso,
+                        "enunciado": enunciado,
+                        "opciones": {"A": opt_a, "B": opt_b, "C": opt_c},
+                        "tu_resp": resp,
+                        "optima": correcta,
+                        "aceptable": correcta,
+                        "puntos": pts,
+                        "just": just
                     })
                 else:
                     _, categoria, comp_val, tipo_item, afirmacion, optima, aceptable, just = datos
                     pts = 1.0 if resp == optima else (0.5 if resp == aceptable else 0.0)
                     st.session_state.historial.append({
-                        "num": idx + 1, "formato": "LIKERT", "categoria": categoria,
-                        "subtipo": f"{comp_val} ({tipo_item})", "tipo_item": tipo_item,
-                        "afirmacion": afirmacion, "tu_resp": resp, "optima": optima,
-                        "aceptable": aceptable, "puntos": pts, "just": just
+                        "num": idx + 1,
+                        "formato": "LIKERT",
+                        "categoria": categoria,
+                        "subtipo": f"{comp_val} ({tipo_item})",
+                        "tipo_item": tipo_item,
+                        "afirmacion": afirmacion,
+                        "opciones": mapa_opciones,
+                        "tu_resp": resp,
+                        "optima": optima,
+                        "aceptable": aceptable,
+                        "puntos": pts,
+                        "just": just
                     })
                 st.session_state.indice += 1
                 st.rerun()
@@ -171,17 +188,48 @@ elif st.session_state.examen_activo:
             st.subheader(f"🏆 Puntaje Ponderado Total: {ponderado:.2f} / 100.00")
 
         st.divider()
-        st.subheader("Revisión Psicométrica y Técnica")
+        st.subheader("🔍 Revisión Completa: Preguntas, Opciones y Justificación")
+
+        filtro = st.radio(
+            "Mostrar en la revisión:",
+            options=["TODAS", "ERRORES"],
+            horizontal=True,
+            format_func=lambda x: "📋 Todas las preguntas" if x == "TODAS" else "❌ Solo incorrectas / parciales"
+        )
 
         for item in st.session_state.historial:
+            if filtro == "ERRORES" and item["puntos"] == 1.0:
+                continue
+
             icono = "✅" if item["puntos"] == 1.0 else ("⚠️" if item["puntos"] == 0.5 else "❌")
-            titulo = f"Pregunta {item['num']} [{item['formato']}] - {icono} Tu resp: {item['tu_resp']} (Óptima: {item['optima']})"
-            with st.expander(titulo):
-                if item["formato"] == "LIKERT":
+            titulo = f"Pregunta {item['num']} [{item['formato']}] — {icono} Tu resp: {item['tu_resp']} | Correcta: {item['optima']}"
+
+            with st.expander(titulo, expanded=(item["puntos"] < 1.0)):
+                if item["formato"] == "PJS":
+                    st.markdown(f"**📖 CASO:**\n{item['caso']}")
+                    st.markdown(f"**🎯 ENUNCIADO:**\n{item['enunciado']}")
+                    st.markdown("**📋 OPCIONES DE RESPUESTA:**")
+
+                    for letra, texto_opt in item["opciones"].items():
+                        if letra == item["optima"] and letra == item["tu_resp"]:
+                            st.success(f"**{letra}.** {texto_opt}  \n*(✅ Tu respuesta — Correcta)*")
+                        elif letra == item["tu_resp"]:
+                            st.error(f"**{letra}.** {texto_opt}  \n*(❌ Tu elección — Incorrecta)*")
+                        elif letra == item["optima"]:
+                            st.success(f"**{letra}.** {texto_opt}  \n*(✔️ Respuesta Correcta)*")
+                        else:
+                            st.markdown(f"**{letra}.** {texto_opt}")
+                else:
                     st.markdown(f"**Eje evaluado:** `{item['subtipo']}`")
-                    st.markdown(f"**Afirmación:** *\"{item['afirmacion']}\"*")
-                    st.markdown(f"**Clave Óptima (100%):** `{item['optima']}` | **Aceptable (50%):** `{item['aceptable']}`")
-                st.markdown(f"**Justificación:**\n{item['just']}")
+                    st.markdown(f"**📝 Afirmación:**\n> *\"{item['afirmacion']}\"*")
+                    txt_tu = item["opciones"].get(item["tu_resp"], "")
+                    txt_opt = item["opciones"].get(item["optima"], "")
+                    txt_acep = item["opciones"].get(item["aceptable"], "")
+                    st.markdown(f"- **Tu elección:** `{item['tu_resp']}` ({txt_tu})")
+                    st.markdown(f"- **Clave Óptima (100%):** `{item['optima']}` ({txt_opt}) | **Aceptable (50%):** `{item['aceptable']}` ({txt_acep})")
+
+                st.divider()
+                st.markdown(f"**💡 Análisis y Justificación:**\n{item['just']}")
 
         if st.button("🔄 Volver al Menú Principal", use_container_width=True):
             st.session_state.cola = []
